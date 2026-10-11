@@ -14,5 +14,4 @@ python-version: "3.12"
 - name: Install market data library
 run: pip install yfinance
 - name: Test market data
-run: |
-python -c 'import yfinance as yf; print(yf.Ticker("AAPL").history(period="5d")["Close"].tail())'
+run: python -c "import yfinance as yf; print(yf.Ticker('AAPL').history(period='5d')['Close'].tail())"
