@@ -1,5 +1,5 @@
 name: Stock Data Test
-on:
+'on':
 workflow_dispatch:
 jobs:
 test:
