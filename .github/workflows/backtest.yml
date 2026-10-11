@@ -1,12 +1,12 @@
-name: Stock Data Test
+name: Strategy Backtest
 
 on:
   workflow_dispatch:
 
 jobs:
-  test-market-data:
+  backtest:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 90
 
     steps:
       - name: Check out repository
@@ -22,134 +22,16 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Fetch recent prices for AAPL and BARC.L
-        shell: python
-        run: |
-          import sys
-          import yfinance as yf
-
-          tickers = ["AAPL", "BARC.L"]
-          failed = []
-
-          print(f"yfinance version: {yf.__version__}")
-
-          for ticker in tickers:
-              print("")
-              print(f"===== {ticker} =====")
-              try:
-                  history = yf.Ticker(ticker).history(period="1mo", interval="1d")
-              except Exception as error:
-                  print(f"ERROR: request for {ticker} failed: {error}")
-                  failed.append(ticker)
-                  continue
-
-              if history is None or history.empty:
-                  print(f"ERROR: no price data returned for {ticker}")
-                  failed.append(ticker)
-                  continue
-
-              last_date = history.index[-1].date()
-              last_close = history["Close"].iloc[-1]
-              print(f"Rows returned: {len(history)}")
-              print(f"Latest date:   {last_date}")
-              print(f"Latest close:  {last_close:.2f}")
-              print("Last 5 rows:")
-              print(history[["Open", "High", "Low", "Close", "Volume"]].tail(5).round(2))
-
-          print("")
-          if failed:
-              print(f"FAILED: could not retrieve data for: {', '.join(failed)}")
-              sys.exit(1)
-
-          print("SUCCESS: market data retrieved for all tickers.")
-
-      - name: Check Trading 212 instrument list
-        shell: python
+      - name: Run backtest
         env:
           TRADING212_API_KEY: ${{ secrets.TRADING212_API_KEY }}
           TRADING212_API_SECRET: ${{ secrets.TRADING212_API_SECRET }}
-        run: |
-          import base64
-          import json
-          import os
-          import sys
-          import time
-          import urllib.error
-          import urllib.request
-          from collections import Counter
+        run: python backtest.py
 
-          BASE_URL = "https://live.trading212.com/api/v0/equity/metadata"
-
-          key = os.environ.get("TRADING212_API_KEY", "").strip()
-          secret = os.environ.get("TRADING212_API_SECRET", "").strip()
-          if not key or not secret:
-              print("ERROR: TRADING212_API_KEY or TRADING212_API_SECRET is missing or empty.")
-              sys.exit(1)
-
-          credentials = base64.b64encode(f"{key}:{secret}".encode("utf-8")).decode("ascii")
-          headers = {"Authorization": f"Basic {credentials}"}
-
-          def get_json(path):
-              for attempt in range(1, 4):
-                  request = urllib.request.Request(f"{BASE_URL}/{path}", headers=headers)
-                  try:
-                      with urllib.request.urlopen(request, timeout=60) as response:
-                          return json.loads(response.read().decode("utf-8"))
-                  except urllib.error.HTTPError as error:
-                      if error.code == 429 and attempt < 3:
-                          print(f"Rate limited on /{path}; waiting 55 seconds (attempt {attempt}).")
-                          time.sleep(55)
-                          continue
-                      hints = {
-                          401: "the API key or secret is wrong.",
-                          403: "the key is missing the Metadata permission.",
-                      }
-                      print(f"ERROR: Trading 212 returned HTTP {error.code} for /{path}: "
-                            f"{hints.get(error.code, 'unexpected error.')}")
-                      sys.exit(1)
-              print(f"ERROR: still rate limited on /{path} after 3 attempts.")
-              sys.exit(1)
-
-          instruments = get_json("instruments")
-          exchanges = get_json("exchanges")
-
-          schedule_to_exchange = {}
-          for exchange in exchanges:
-              for schedule in exchange.get("workingSchedules", []):
-                  schedule_to_exchange[schedule.get("id")] = exchange.get("name", "?")
-
-          print(f"Total instruments: {len(instruments)}")
-          print(f"Total exchanges:   {len(exchanges)}")
-
-          print("")
-          print("Instruments by type:")
-          for name, count in Counter(i.get("type") for i in instruments).most_common():
-              print(f"  {name}: {count}")
-
-          stocks = [i for i in instruments if i.get("type") == "STOCK"]
-          by_exchange = Counter(schedule_to_exchange.get(i.get("workingScheduleId"), "UNKNOWN") for i in stocks)
-
-          print("")
-          print("Stocks by exchange (top 25):")
-          for name, count in by_exchange.most_common(25):
-              examples = [i["ticker"] for i in stocks
-                          if schedule_to_exchange.get(i.get("workingScheduleId"), "UNKNOWN") == name][:4]
-              print(f"  {name}: {count}   e.g. {', '.join(examples)}")
-
-          print("")
-          print("Stocks by currency:")
-          for name, count in Counter(i.get("currencyCode") for i in stocks).most_common(10):
-              print(f"  {name}: {count}")
-
-          print("")
-          print("Sample records (AAPL and BARC):")
-          for i in stocks:
-              if i.get("shortName") in ("AAPL", "BARC"):
-                  print("  " + json.dumps(i))
-
-          if not stocks:
-              print("ERROR: no stocks returned.")
-              sys.exit(1)
-
-          print("")
-          print("SUCCESS: Trading 212 instrument list retrieved.")
+      - name: Save results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backtest-results
+          path: results/
+          if-no-files-found: warn
