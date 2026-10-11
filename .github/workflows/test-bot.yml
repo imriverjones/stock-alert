@@ -1,18 +1,24 @@
 name: Stock Data Test
+
 on:
 workflow_dispatch:
+
 jobs:
 test:
 runs-on: ubuntu-latest
 steps:
-- name: Checkout
+- name: Checkout repository
 uses: actions/checkout@v4
-- name: Set up Python
-uses: actions/setup-python@v5
-with:
-python-version: "3.12"
-- name: Install market data library
-run: pip install yfinance
-- name: Test market data
-run: |
-python -c 'import yfinance as yf; print(yf.Ticker("AAPL").history(period="5d")["Close"].tail())'
+
+```
+  - name: Set up Python
+    uses: actions/setup-python@v5
+    with:
+      python-version: "3.12"
+
+  - name: Install yfinance
+    run: pip install yfinance
+
+  - name: Check stock price
+    run: python -c "import yfinance as yf; print(yf.Ticker('AAPL').history(period='5d'))"
+```
