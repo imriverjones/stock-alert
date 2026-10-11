@@ -5,11 +5,14 @@ jobs:
 test:
 runs-on: ubuntu-latest
 steps:
-- uses: actions/checkout@v4
-- uses: actions/setup-python@v5
+- name: Checkout
+uses: actions/checkout@v4
+- name: Set up Python
+uses: actions/setup-python@v5
 with:
 python-version: "3.12"
-- name: Install yfinance
-run: python -m pip install yfinance
-- name: Test Apple stock price
-run: python -c "import yfinance as yf; print(yf.Ticker('AAPL').history(period='5d')['Close'].tail())"
+- name: Install market data library
+run: pip install yfinance
+- name: Test market data
+run: |
+python -c 'import yfinance as yf; print(yf.Ticker("AAPL").history(period="5d")["Close"].tail())'
