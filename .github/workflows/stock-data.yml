@@ -1,17 +1,64 @@
 name: Stock Data Test
-'on':
-workflow_dispatch:
+
+on:
+  workflow_dispatch:
+
 jobs:
-test:
-runs-on: ubuntu-latest
-steps:
-- name: Checkout
-uses: actions/checkout@v4
-- name: Set up Python
-uses: actions/setup-python@v5
-with:
-python-version: "3.12"
-- name: Install market data library
-run: pip install yfinance
-- name: Test market data
-run: python -c "import yfinance as yf; print(yf.Ticker('AAPL').history(period='5d')['Close'].tail())"
+  test-market-data:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Fetch recent prices for AAPL and BARC.L
+        shell: python
+        run: |
+          import sys
+          import yfinance as yf
+
+          tickers = ["AAPL", "BARC.L"]
+          failed = []
+
+          print(f"yfinance version: {yf.__version__}")
+
+          for ticker in tickers:
+              print("")
+              print(f"===== {ticker} =====")
+              try:
+                  history = yf.Ticker(ticker).history(period="1mo", interval="1d")
+              except Exception as error:
+                  print(f"ERROR: request for {ticker} failed: {error}")
+                  failed.append(ticker)
+                  continue
+
+              if history is None or history.empty:
+                  print(f"ERROR: no price data returned for {ticker}")
+                  failed.append(ticker)
+                  continue
+
+              last_date = history.index[-1].date()
+              last_close = history["Close"].iloc[-1]
+              print(f"Rows returned: {len(history)}")
+              print(f"Latest date:   {last_date}")
+              print(f"Latest close:  {last_close:.2f}")
+              print("Last 5 rows:")
+              print(history[["Open", "High", "Low", "Close", "Volume"]].tail(5).round(2))
+
+          print("")
+          if failed:
+              print(f"FAILED: could not retrieve data for: {', '.join(failed)}")
+              sys.exit(1)
+
+          print("SUCCESS: market data retrieved for all tickers.")
