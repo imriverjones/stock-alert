@@ -1,24 +1,14 @@
 name: Stock Data Test
-
-on:
+'on':
 workflow_dispatch:
-
 jobs:
 test:
 runs-on: ubuntu-latest
 steps:
-- name: Checkout repository
-uses: actions/checkout@v4
+- uses: actions/checkout@v4
+- uses: actions/setup-python@v5
+with:
+python-version: '3.12'
+- run: python -m pip install yfinance
+- run: python -c "import yfinance; print(yfinance.Ticker('AAPL').history(period='5d'))"
 
-```
-  - name: Set up Python
-    uses: actions/setup-python@v5
-    with:
-      python-version: "3.12"
-
-  - name: Install yfinance
-    run: pip install yfinance
-
-  - name: Check stock price
-    run: python -c "import yfinance as yf; print(yf.Ticker('AAPL').history(period='5d'))"
-```
