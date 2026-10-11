@@ -1,11 +1,11 @@
-
-name: Test Telegram Bot
+```yaml
+name: Test Stock Market Data
 
 on:
   workflow_dispatch:
 
 jobs:
-  test-bot:
+  test-market-data:
     runs-on: ubuntu-latest
 
     steps:
@@ -17,8 +17,11 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Send Telegram test message
-        env:
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: python main.py
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Test stock prices
+        run: |
+          python -c "import yfinance as yf; data = yf.download(['AAPL', 'BARC.L'], period='5d', progress=False); print(data[['Close']].tail()); assert not data.empty, 'No stock data returned'"
+```
+
